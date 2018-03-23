@@ -1,5 +1,6 @@
 #!/usr/bin/python
 
+from q4 import getRareWords, findWordsInTree, replaceRareWordsInTree, ReplaceRareWords
 from tree import Tree
 import json
 
@@ -205,7 +206,7 @@ def ParseTestData(test_data_file_name = None, counts_file_name = None):
     """
     # Compute the name of the outut key file
     # For parse_test.dat, the output file name is parse_dev.key
-    test_data_key_file_name = test_data_file_name.split(".")[0] + "_predictions.key"
+    test_data_key_file_name = test_data_file_name.split(".")[0] + "_predictions_q6.key"
 
     # Get the list of all words from the counts file and give it to PreprocessRareWords
     all_words = GetAllWords(counts_file_name = counts_file_name)
@@ -236,7 +237,15 @@ def ParseTestData(test_data_file_name = None, counts_file_name = None):
             
 
 if __name__ == "__main__":
+    
+    # Create a new training file where rare words have been preprocessed
+    # Input file: parse_train_vert.dat
+    # Output file: parse_train_vert_q6.dat
+    rare_words = getRareWords(file_name = "cfg_q6.counts")
 
+    ReplaceRareWords(input_file_name = "parse_train_vert.dat", 
+                    output_file_name = "parse_train_vert_q6.dat",
+                    rare_words = rare_words)
     
     # Calculate parse trees for the test data
     ParseTestData(test_data_file_name = "parse_dev.dat", counts_file_name = "cfg_q6.counts") 
