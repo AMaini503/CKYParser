@@ -205,7 +205,7 @@ def ParseTestData(test_data_file_name = None, counts_file_name = None):
     """
     # Compute the name of the outut key file
     # For parse_test.dat, the output file name is parse_dev.key
-    test_data_key_file_name = test_data_file_name.split(".")[0] + "_predictions.key"
+    test_data_key_file_name = test_data_file_name.split(".")[0] + "_predictions_q5.key"
 
     # Get the list of all words from the counts file and give it to PreprocessRareWords
     all_words = GetAllWords(counts_file_name = counts_file_name)
