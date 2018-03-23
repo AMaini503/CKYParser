@@ -41,3 +41,13 @@ class Tree:
 
     def getVal(self):
         return self.val
+    
+    def toArray(self):
+        """Converts tree structure to an array"""
+
+        # If this node is a Fringe, its child is a word
+        if(self.isFringe() == True):
+            return [self.val, self.down]
+        # Every other node has 2 children
+        else:
+            return [self.val, self.left.toArray(), self.right.toArray()]

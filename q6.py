@@ -239,4 +239,4 @@ if __name__ == "__main__":
 
     
     # Calculate parse trees for the test data
-    ParseTestData(test_data_file_name = "parse_dev.dat", counts_file_name = "cfg_q5.counts") 
+    ParseTestData(test_data_file_name = "parse_dev.dat", counts_file_name = "cfg_q6.counts") 
