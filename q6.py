@@ -1,8 +1,9 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
-from q4 import getRareWords, findWordsInTree, replaceRareWordsInTree, ReplaceRareWords
 from tree import Tree
 import json
+import os
+import sys
 
 def GetQ(counts_file_name = None):
     """Reads the counts file and returns the parameters of underlying CFG
@@ -79,41 +80,91 @@ def getBinaryRulesFor(q_binary_rules, X):
     binary_rules_with_X = [binary_rule for binary_rule in q_binary_rules if binary_rule[0] == X]
     return binary_rules_with_X    
 
-def buildTree(bp = None, root_val = None, n = None):
-    """Builds an intermediate tree representation from the bp dictionary"""
+#def buildTree(bp = None, root_val = None, n = None):
+#    """Builds an intermediate tree representation from the bp dictionary"""
+#    queue = list()
+#    root = Tree(val = root_val)
+#    main_root = root
+#    queue.append((root, 0, n - 1))
+#
+#    while(len(queue) != 0):
+#        root, l, r = queue[0]
+#        root_val = root.getVal()
+#        expansion_rule, s = bp[(l, r, root_val)]
+#        
+#
+#        # If a binary rule is used to expand the node => this is an internal node
+#        if(len(expansion_rule) == 3):
+#            left_non_terminal = expansion_rule[1]
+#            root_left = Tree(val = left_non_terminal)
+#            root.SetLeftChild(root_left)
+#
+#            right_non_terminal = expansion_rule[2]
+#            root_right = Tree(val = right_non_terminal)
+#            root.SetRightChild(root_right)
+#
+#            queue.append((root_left, l, s))
+#            queue.append((root_right, s + 1, r))
+#        # If a unary rule is used to expand the node => its down child is a word
+#        elif(len(expansion_rule) == 2):
+#            word = expansion_rule[1]
+#            root_down = Tree(val = word)
+#            root.SetDownChild(word)
+#        else:
+#            raise Exception("buildTree: Invalid expansion rule")
+#        
+#        del queue[0]          
+#    return main_root
+
+def toJSONArray(bp = None, root_val = None, n = None):
+    """Computes JSON representation of the underlying parse tree from bp dictionary"""
+
+    # represents empty tree as of now
+    json_array = []
     queue = list()
-    root = Tree(val = root_val)
-    main_root = root
-    queue.append((root, 0, n - 1))
+    queue.append([json_array, root_val, 0, n - 1])
 
     while(len(queue) != 0):
-        root, l, r = queue[0]
-        root_val = root.getVal()
+
+        # This means that a subtree rooted at `root_val` needs to be constructed
+        subtree, root_val, l, r = queue[0]
+
+        # Get the expansion rule and the split point
         expansion_rule, s = bp[(l, r, root_val)]
-        
 
-        # If a binary rule is used to expand the node => this is an internal node
+        # A binary rule is used for expansion
         if(len(expansion_rule) == 3):
-            left_non_terminal = expansion_rule[1]
-            root_left = Tree(val = left_non_terminal)
-            root.SetLeftChild(root_left)
+            this_root_left_child = []
+            this_root_left_child_root = expansion_rule[1]
 
-            right_non_terminal = expansion_rule[2]
-            root_right = Tree(val = right_non_terminal)
-            root.SetRightChild(root_right)
+            this_root_right_child = []
+            this_root_right_child_root = expansion_rule[2]
 
-            queue.append((root_left, l, s))
-            queue.append((root_right, s + 1, r))
-        # If a unary rule is used to expand the node => its down child is a word
+            # Modify the subtree in place to include this root
+            subtree.append(root_val)
+            subtree.append(this_root_left_child)
+            subtree.append(this_root_right_child)
+            
+            # queue the operations to construct left and right sub tree
+            queue.append([this_root_left_child, this_root_left_child_root, l, s])
+            queue.append([this_root_right_child, this_root_right_child_root, s + 1, r])
+
+        # A unary rule is used for expansion
         elif(len(expansion_rule) == 2):
             word = expansion_rule[1]
-            root_down = Tree(val = word)
-            root.SetDownChild(word)
+
+            # Make the subtree X -> W
+            subtree.append(root_val)
+            subtree.append(word)
+
         else:
-            raise Exception("buildTree: Invalid expansion rule")
+            raise Exception("toJSONArray: Invaluid expansion rule")
         
-        del queue[0]          
-    return main_root
+        # delete the current operation entry
+        del queue[0]
+
+    return json_array
+
 
 def CKY(words, q_binary_rules, q_unary_rules, N):
     """Runs the dynamic programming based CKY on the given sentence
@@ -187,17 +238,22 @@ def CKY(words, q_binary_rules, q_unary_rules, N):
                 root_val = X
     ##################### BUILD THE PARSE TREES OUT OF BACKPOINTERS ####################
     assert(root_val is not None)                
-    parse_tree = buildTree(bp = bp, root_val = root_val, n = n)
-
-    # Convert this tree representation to array suitable for conversion to JSON 
-    parse_tree_as_array = parse_tree.toArray()
-
-    # Convert array to JSON
+#    parse_tree = buildTree(bp = bp, root_val = root_val, n = n)
+#
+#    # Convert this tree representation to array suitable for conversion to JSON 
+#    parse_tree_as_array = parse_tree.toArray()
+#
+#    # Convert array to JSON
+#    parse_tree_as_json = json.dumps(parse_tree_as_array)
+#
+#    return parse_tree_as_json
+    
+    parse_tree_as_array = toJSONArray(bp = bp, root_val = root_val, n = n)
     parse_tree_as_json = json.dumps(parse_tree_as_array)
-
     return parse_tree_as_json
          
-def ParseTestData(test_data_file_name = None, counts_file_name = None):
+def ParseTestData(test_data_file_name = None, counts_file_name = None, 
+        test_predictions_file_name = None):
     """Computes the parse trees for the test data
 
     Reads the test data file line by line. Each line contains a single sentence. The sentence is
@@ -206,7 +262,7 @@ def ParseTestData(test_data_file_name = None, counts_file_name = None):
     """
     # Compute the name of the outut key file
     # For parse_test.dat, the output file name is parse_dev.key
-    test_data_key_file_name = test_data_file_name.split(".")[0] + "_predictions_q6.key"
+    test_data_key_file_name = test_predictions_file_name 
 
     # Get the list of all words from the counts file and give it to PreprocessRareWords
     all_words = GetAllWords(counts_file_name = counts_file_name)
@@ -237,15 +293,29 @@ def ParseTestData(test_data_file_name = None, counts_file_name = None):
             
 
 if __name__ == "__main__":
-    
-    # Create a new training file where rare words have been preprocessed
-    # Input file: parse_train_vert.dat
-    # Output file: parse_train_vert_q6.dat
-    rare_words = getRareWords(file_name = "cfg_q6.counts")
+ 
+    # Parse the command line arguments
+    train_file_name = sys.argv[1]
+    test_file_name = sys.argv[2]
+    test_predictions_file_name = sys.argv[3]
+    counts_file_name = "cfg_q6.counts"
 
-    ReplaceRareWords(input_file_name = "parse_train_vert.dat", 
-                    output_file_name = "parse_train_vert_q6.dat",
-                    rare_words = rare_words)
-    
+    # Generate the counts file from the train file: parse_train_vert.RARE.dat
+    cmd_counts_file_generation = "./count_cfg_freq.py %s > %s" % (
+                                    train_file_name, counts_file_name)
+    os.system(cmd_counts_file_generation)    
+
+     
     # Calculate parse trees for the test data
-    ParseTestData(test_data_file_name = "parse_dev.dat", counts_file_name = "cfg_q6.counts") 
+    ParseTestData(test_data_file_name = test_file_name, 
+                    counts_file_name = counts_file_name,
+                    test_predictions_file_name = test_predictions_file_name)
+
+    # Delete the counts file
+    cmd_delete_counts_file = "rm -rf %s" % (counts_file_name)
+    os.system(cmd_delete_counts_file)
+
+    # Generate the evaluation results
+    cmd_generate_evaluation_results = "python eval_parser.py parse_dev.key %s > q6_eval.txt" % (
+                                        test_predictions_file_name)
+    os.system(cmd_generate_evaluation_results) 

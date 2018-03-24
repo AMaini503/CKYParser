@@ -1,6 +1,8 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
 import json
+import sys
+import os
 
 def getRareWords(file_name = None):
     """Return a list of rare words given the file name
@@ -106,9 +108,25 @@ def ReplaceRareWords(input_file_name = None, output_file_name = None, rare_words
 
 if __name__ == "__main__":
     
+    # Parse the command line arguments to get the original train file name and the new 
+    # train file name
+    original_train_file = sys.argv[1]
+    new_train_file = sys.argv[2]
+    counts_file_name = "cfg_q4.counts"
+
+    # Generate the cfg.counts file to get the list of the rare words
+    # Generated everytime the code is run
+    cmd_generate_counts_file = "./count_cfg_freq.py %s > %s" % (
+                                original_train_file, counts_file_name)
+    os.system(cmd_generate_counts_file)
+
     # Number of rare words found = 8615
     # Total number of words = 10024
-    rare_words = getRareWords(file_name = "cfg.counts")
+    rare_words = getRareWords(file_name = counts_file_name)
     
-    ReplaceRareWords(input_file_name = "parse_train.dat", output_file_name = "parse_train_q4.dat"
+    ReplaceRareWords(input_file_name = original_train_file, output_file_name = new_train_file
             , rare_words = rare_words)
+    
+    # Delete the counts file
+    cmd_delete_counts_file = "rm -rf %s" % (counts_file_name)
+    os.system(cmd_delete_counts_file)
