@@ -5,22 +5,26 @@ import json
 import sys
 import os
 
-def GetQ(counts_file_name = None):
-    """Reads the counts file and returns the parameters of underlying CFG
+def GetParameters(counts_file_name = None):
+    """Reads the counts file and returns the parameters of underlying CFG: q_binary_rules, q_unary_rules, N, all_words
     
     Reads the counts file given as argument and return maximul likelihood estimates for the 
     parameters. The counts file contains the rare words replaced by _RARE_ keyword. So, before
     using these parameters, any test data must be preprocessed to replace rare words by _RARE_
 
     """
-    # Indexed by a tuple: (X, Y1, Y2) where X -> Y1 Y2 is the expansion
+    # Indexed by the non-terminal X: All the rules X -> Y Z are stored in q_binary_rules[X]
+    # The second level of indirection: q_binary_rules[X][(Y, Z)] = count of the binary rule
     q_binary_rules = dict()
 
-    # Indexed by a tuple: (X, W) where X -> W is the expansion
+    # Indexed by the non-termianl X: All the rules X -> W are stored in q_unary_rules[X]
     q_unary_rules = dict()
 
-    # Indexed by a string: X where X is a non-terminal
+    # Indexed by a string: X where X is a non-terminal. This is used when computing ML estimates
     q_non_terminal = dict()
+
+    # list of all the words. This list includes rare words classified into the category: _RARE_
+    all_words = set()
 
     # In the initial iteration, q_binary_rules, q_unary_rules store the counts
     # In the next iteration, these counts are divided by counts of the non-terminals
@@ -36,38 +40,51 @@ def GetQ(counts_file_name = None):
             elif(tokens[1] == "BINARYRULE"):
                 count_binary_rule = int(tokens[0])
                 X, Y1, Y2 = tokens[2], tokens[3], tokens[4]
-                q_binary_rules[(X, Y1, Y2)] = count_binary_rule
-             
+
+                # If no rule `X -> Y Z` has been seen, intialize q_binary_rules[X] to an empty dictionary
+                if(X not in q_binary_rules):
+                    q_binary_rules[X] = dict()
+                    
+                q_binary_rules[X][(Y1, Y2)] = count_binary_rule
+ 
             elif(tokens[1] == "UNARYRULE"):
                 count_unary_rule = int(tokens[0])
                 X, W = tokens[2], tokens[3]
-                q_unary_rules[(X, W)] = count_unary_rule
+
+                if(X not in q_unary_rules):
+                    q_unary_rules[X] = dict()
+
+                q_unary_rules[X][W] = count_unary_rule
+                all_words.add(W)
         
     #################### SECOND ITERATION #################
     # Divide the counts of binary rules by the counts of the respective non-terminals
-    for X, Y1, Y2 in q_binary_rules:
-        q_binary_rules[(X, Y1, Y2)] = q_binary_rules[(X, Y1, Y2)] / q_non_terminal[X]
+    for X in q_binary_rules:
+        count_of_X = q_non_terminal[X]
+        for Y1, Y2 in q_binary_rules[X]:
+            q_binary_rules[X][(Y1, Y2)] = q_binary_rules[X][(Y1, Y2)] / q_non_terminal[X]
 
     # Divide the counts of unary rules by the counts of the respective non-terminals
-    for X, W in q_unary_rules:
-        q_unary_rules[(X, W)] = q_unary_rules[(X, W)] / q_non_terminal[X]
+    for X in q_unary_rules:
+        for W in q_unary_rules[X]:
+            q_unary_rules[X][W] = q_unary_rules[X][W] / q_non_terminal[X]
 
-    return q_binary_rules, q_unary_rules, list(q_non_terminal.keys())
+    return q_binary_rules, q_unary_rules, list(q_non_terminal.keys()), all_words
 
 
-def GetAllWords(counts_file_name = None):
-    """Returns the list of all the words in the training data"""
-
-    # Total number of words = 10024
-    # Number of rare words = 8615
-    # Total number of words after replacement = 10024 - 8615 + 1 (for _RARE_) = 1410
-    all_words = set()
-    with open(counts_file_name, "r") as f:
-        for line in f:
-            tokens = line.strip().split()
-            if(tokens[1] == "UNARYRULE"):
-                all_words.add(tokens[3])
-    return all_words
+#def GetAllWords(counts_file_name = None):
+#    """Returns the list of all the words in the training data"""
+#
+#    # Total number of words = 10024
+#    # Number of rare words = 8615
+#    # Total number of words after replacement = 10024 - 8615 + 1 (for _RARE_) = 1410
+#    all_words = set()
+#    with open(counts_file_name, "r") as f:
+#        for line in f:
+#            tokens = line.strip().split()
+#            if(tokens[1] == "UNARYRULE"):
+#                all_words.add(tokens[3])
+#    return all_words
 
 def PreprocessRareWords(words = None, all_words = None):
     """Replace rare words with _RARE_"""
@@ -75,10 +92,10 @@ def PreprocessRareWords(words = None, all_words = None):
         if(words[i] not in all_words):
             words[i] = "_RARE_"
 
-def getBinaryRulesFor(q_binary_rules, X):
-    """Gets the binary rules of form X -> *"""
-    binary_rules_with_X = [binary_rule for binary_rule in q_binary_rules if binary_rule[0] == X]
-    return binary_rules_with_X    
+#def getBinaryRulesFor(q_binary_rules, X):
+#    """Gets the binary rules of form X -> *"""
+#    binary_rules_with_X = [binary_rule for binary_rule in q_binary_rules if binary_rule[0] == X]
+#    return binary_rules_with_X    
 
 #def buildTree(bp = None, root_val = None, n = None):
 #    """Builds an intermediate tree representation from the bp dictionary"""
@@ -175,13 +192,14 @@ def CKY(words, q_binary_rules, q_unary_rules, N):
 
     #################### INITIALIZATION ##########################
     for i in range(len(words)):
-        for X in N:
-            rule = (X, words[i])
-            if(rule in q_unary_rules):
-                pi[(i, i, X)] = q_unary_rules[(X, words[i])]
+        # the X non-terminal must expand to a word. Those words are present in q_unary_rules
+        for X in q_unary_rules:
+            if(words[i] in q_unary_rules[X]):
+                pi[(i, i, X)] = q_unary_rules[X][words[i]]
+
+                # The -1 is appended because the bp below stores (rule, split_point)
+                # The -1 here is useless but helps code be compatabile 
                 bp[(i, i, X)] = ((X, words[i]), -1)
-            else:
-                pi[(i, i , X)] = 0
     
     ############## MAIN LOOP OF THE ALGORITHM ##########
     n = len(words)
@@ -191,39 +209,41 @@ def CKY(words, q_binary_rules, q_unary_rules, N):
     for l in range(2, n + 1):
         for i in range(0, n - l + 1):
             j = i + l - 1
-
-            for X in N:
+            
+            # The recursive rule expands this X into 2 non-terminals, thus, this X must have a 
+            # binary expansion => it must belong to the q_binary_rules dictionary   
+            for X in list(q_binary_rules.keys()):
                 pi[(i, j, X)] = 0
 
                 # Stores the binary rule that gives the max probability
                 max_binary_rule = None
+                
                 # Stores the split point that gives the max probability   
                 max_s = None
                 
                 flag = False 
                 
-                for binary_rule in getBinaryRulesFor(q_binary_rules, X):
-                    for s in range(i, j):
-                        X_, Y, Z = binary_rule
-
-                        # Should always evalulate to true
-                        assert(X_ == X)
-
-                        this_prob = q_binary_rules[binary_rule] * pi[(i, s, Y)] * pi[(s + 1, j, Z)]
-                        assert(this_prob >= 0)
-                        if(this_prob > pi[(i, j, X)]):
-                                pi[(i, j, X)] = this_prob
-                                max_binary_rule = binary_rule
-                                max_s = s
-                                flag = True
+                for binary_rule in list(q_binary_rules[X].keys()):
+                    Y, Z = binary_rule
+                    for s in range(i, j):                      
+                        # if these tuples are not present => pi = 0  for them => this_prob = 0
+                        # and hence, this non-terminal can be skipped
+                        if((i, s, Y) in pi and (s + 1, j, Z) in pi):
+                            this_prob = q_binary_rules[X][(Y, Z)] * pi[(i, s, Y)] * pi[(s + 1, j, Z)]
+                            # assert(this_prob >= 0)
+                            if(this_prob > pi[(i, j, X)]):
+                                    pi[(i, j, X)] = this_prob
+                                    max_binary_rule = (X, Y, Z)
+                                    max_s = s
+                                    flag = True
 
                 # Store the back pointer information
                 bp[(i, j, X)] = (max_binary_rule, max_s)
                 
                 # Append this non-terminal only if a max_binary_rule and a valid split point was
                 # found
-                if(i == 0 and j == n - 1 and flag == True):
-                    valid_root_vals.append(X)
+                # if(i == 0 and j == n - 1 and flag == True):
+                #   valid_root_vals.append(X)
     
     # Handling the case where the sentence is a fragment
     root_val = None
@@ -231,7 +251,7 @@ def CKY(words, q_binary_rules, q_unary_rules, N):
         root_val = 'S'
     else:
         max_prob = 0
-        for X in valid_root_vals:
+        for X in q_binary_rules:
             if(pi[(0, n - 1, X)] > max_prob):
                 max_prob = pi[(0, n - 1, X)]
                 root_val = X
@@ -246,7 +266,7 @@ def CKY(words, q_binary_rules, q_unary_rules, N):
 #    parse_tree_as_json = json.dumps(parse_tree_as_array)
 #
 #    return parse_tree_as_json
-
+    
     parse_tree_as_array = toJSONArray(bp = bp, root_val = root_val, n = n)
     parse_tree_as_json = json.dumps(parse_tree_as_array)
     return parse_tree_as_json
@@ -262,12 +282,12 @@ def ParseTestData(test_data_file_name = None, counts_file_name = None,
     # Compute the name of the outut key file
     # For parse_test.dat, the output file name is parse_dev.key
     test_data_key_file_name = test_predictions_file_name 
-
-    # Get the list of all words from the counts file and give it to PreprocessRareWords
-    all_words = GetAllWords(counts_file_name = counts_file_name)
+ 
+    # Calculate the parameters of the model: q_binary_rules, q_unary_rules and Non-terminals and 
+    # the word list to be used by PreprocessRareWords
+    ###################### VERIFIED THE `all-words` ##########################
+    q_binary_rules, q_unary_rules, N, all_words = GetParameters(counts_file_name = counts_file_name)
     
-    # Calculate the parameters of the model
-    q_binary_rules, q_unary_rules, N = GetQ(counts_file_name = counts_file_name)
 
 #    # Sanity checks on probabilty
 #    for binary_rule in q_binary_rules:
@@ -288,7 +308,6 @@ def ParseTestData(test_data_file_name = None, counts_file_name = None,
             
             # Write the JSON to the prediction file
             f_test_data_output.write(parse_tree_as_json + "\n")
-
             
 
 if __name__ == "__main__":
