@@ -80,42 +80,6 @@ def getBinaryRulesFor(q_binary_rules, X):
     binary_rules_with_X = [binary_rule for binary_rule in q_binary_rules if binary_rule[0] == X]
     return binary_rules_with_X    
 
-#def buildTree(bp = None, root_val = None, n = None):
-#    """Builds an intermediate tree representation from the bp dictionary"""
-#    queue = list()
-#    root = Tree(val = root_val)
-#    main_root = root
-#    queue.append((root, 0, n - 1))
-#
-#    while(len(queue) != 0):
-#        root, l, r = queue[0]
-#        root_val = root.getVal()
-#        expansion_rule, s = bp[(l, r, root_val)]
-#        
-#
-#        # If a binary rule is used to expand the node => this is an internal node
-#        if(len(expansion_rule) == 3):
-#            left_non_terminal = expansion_rule[1]
-#            root_left = Tree(val = left_non_terminal)
-#            root.SetLeftChild(root_left)
-#
-#            right_non_terminal = expansion_rule[2]
-#            root_right = Tree(val = right_non_terminal)
-#            root.SetRightChild(root_right)
-#
-#            queue.append((root_left, l, s))
-#            queue.append((root_right, s + 1, r))
-#        # If a unary rule is used to expand the node => its down child is a word
-#        elif(len(expansion_rule) == 2):
-#            word = expansion_rule[1]
-#            root_down = Tree(val = word)
-#            root.SetDownChild(word)
-#        else:
-#            raise Exception("buildTree: Invalid expansion rule")
-#        
-#        del queue[0]          
-#    return main_root
-
 def toJSONArray(bp = None, root_val = None, n = None):
     """Computes JSON representation of the underlying parse tree from bp dictionary"""
 
@@ -237,16 +201,6 @@ def CKY(words, q_binary_rules, q_unary_rules, N):
                 root_val = X
     ##################### BUILD THE PARSE TREES OUT OF BACKPOINTERS ####################
     assert(root_val is not None)                
-#    parse_tree = buildTree(bp = bp, root_val = root_val, n = n)
-#
-#    # Convert this tree representation to array suitable for conversion to JSON 
-#    parse_tree_as_array = parse_tree.toArray()
-#
-#    # Convert array to JSON
-#    parse_tree_as_json = json.dumps(parse_tree_as_array)
-#
-#    return parse_tree_as_json
-
     parse_tree_as_array = toJSONArray(bp = bp, root_val = root_val, n = n)
     parse_tree_as_json = json.dumps(parse_tree_as_array)
     return parse_tree_as_json
