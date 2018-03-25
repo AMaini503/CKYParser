@@ -1,6 +1,5 @@
 #!/usr/bin/python3
 
-from tree import Tree
 import json
 import sys
 import os
