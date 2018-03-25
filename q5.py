@@ -14,7 +14,7 @@ def GetParameters(counts_file_name = None):
 
     """
     # Indexed by the non-terminal X: All the rules X -> Y Z are stored in q_binary_rules[X]
-    # The second level of indirection: q_binary_rules[X][(Y, Z)] = count of the binary rule
+    # q_binary_rules[X] = (Y, Z, count of the binary rule)
     q_binary_rules = dict()
 
     # Indexed by the non-termianl X: All the rules X -> W are stored in q_unary_rules[X]
@@ -43,9 +43,9 @@ def GetParameters(counts_file_name = None):
 
                 # If no rule `X -> Y Z` has been seen, intialize q_binary_rules[X] to an empty dictionary
                 if(X not in q_binary_rules):
-                    q_binary_rules[X] = dict()
+                    q_binary_rules[X] = []
                     
-                q_binary_rules[X][(Y1, Y2)] = count_binary_rule
+                q_binary_rules[X].append((Y1, Y2, count_binary_rule))
  
             elif(tokens[1] == "UNARYRULE"):
                 count_unary_rule = int(tokens[0])
@@ -61,77 +61,22 @@ def GetParameters(counts_file_name = None):
     # Divide the counts of binary rules by the counts of the respective non-terminals
     for X in q_binary_rules:
         count_of_X = q_non_terminal[X]
-        for Y1, Y2 in q_binary_rules[X]:
-            q_binary_rules[X][(Y1, Y2)] = q_binary_rules[X][(Y1, Y2)] / q_non_terminal[X]
+        for index, (Y1, Y2, count) in enumerate(q_binary_rules[X]):
+            q_binary_rules[X][index] = (Y1, Y2, count / count_of_X)
 
     # Divide the counts of unary rules by the counts of the respective non-terminals
     for X in q_unary_rules:
+        count_of_X = q_non_terminal[X]
         for W in q_unary_rules[X]:
-            q_unary_rules[X][W] = q_unary_rules[X][W] / q_non_terminal[X]
+            q_unary_rules[X][W] = q_unary_rules[X][W] / count_of_X
 
     return q_binary_rules, q_unary_rules, list(q_non_terminal.keys()), all_words
-
-
-#def GetAllWords(counts_file_name = None):
-#    """Returns the list of all the words in the training data"""
-#
-#    # Total number of words = 10024
-#    # Number of rare words = 8615
-#    # Total number of words after replacement = 10024 - 8615 + 1 (for _RARE_) = 1410
-#    all_words = set()
-#    with open(counts_file_name, "r") as f:
-#        for line in f:
-#            tokens = line.strip().split()
-#            if(tokens[1] == "UNARYRULE"):
-#                all_words.add(tokens[3])
-#    return all_words
 
 def PreprocessRareWords(words = None, all_words = None):
     """Replace rare words with _RARE_"""
     for i in range(len(words)):
         if(words[i] not in all_words):
             words[i] = "_RARE_"
-
-#def getBinaryRulesFor(q_binary_rules, X):
-#    """Gets the binary rules of form X -> *"""
-#    binary_rules_with_X = [binary_rule for binary_rule in q_binary_rules if binary_rule[0] == X]
-#    return binary_rules_with_X    
-
-#def buildTree(bp = None, root_val = None, n = None):
-#    """Builds an intermediate tree representation from the bp dictionary"""
-#    queue = list()
-#    root = Tree(val = root_val)
-#    main_root = root
-#    queue.append((root, 0, n - 1))
-#
-#    while(len(queue) != 0):
-#        root, l, r = queue[0]
-#        root_val = root.getVal()
-#        expansion_rule, s = bp[(l, r, root_val)]
-#        
-#
-#        # If a binary rule is used to expand the node => this is an internal node
-#        if(len(expansion_rule) == 3):
-#            left_non_terminal = expansion_rule[1]
-#            root_left = Tree(val = left_non_terminal)
-#            root.SetLeftChild(root_left)
-#
-#            right_non_terminal = expansion_rule[2]
-#            root_right = Tree(val = right_non_terminal)
-#            root.SetRightChild(root_right)
-#
-#            queue.append((root_left, l, s))
-#            queue.append((root_right, s + 1, r))
-#        # If a unary rule is used to expand the node => its down child is a word
-#        elif(len(expansion_rule) == 2):
-#            word = expansion_rule[1]
-#            root_down = Tree(val = word)
-#            root.SetDownChild(word)
-#        else:
-#            raise Exception("buildTree: Invalid expansion rule")
-#        
-#        del queue[0]          
-#    return main_root
 
 def toJSONArray(bp = None, root_val = None, n = None):
     """Computes JSON representation of the underlying parse tree from bp dictionary"""
@@ -203,6 +148,9 @@ def CKY(words, q_binary_rules, q_unary_rules, N):
     
     ############## MAIN LOOP OF THE ALGORITHM ##########
     n = len(words)
+    
+    # Get the rules with binary expansions. These are used in one of the loops of CKY
+    NT_with_binary_expansions = list(q_binary_rules.keys())
 
     # List of valid root non-terminals for the whole sentence
     valid_root_vals = []
@@ -211,8 +159,8 @@ def CKY(words, q_binary_rules, q_unary_rules, N):
             j = i + l - 1
             
             # The recursive rule expands this X into 2 non-terminals, thus, this X must have a 
-            # binary expansion => it must belong to the q_binary_rules dictionary   
-            for X in list(q_binary_rules.keys()):
+            # binary expansion => it must belong to the q_binary_rules dictionary / NT_with_binary_expansions   
+            for X in NT_with_binary_expansions:
                 pi[(i, j, X)] = 0
 
                 # Stores the binary rule that gives the max probability
@@ -223,14 +171,13 @@ def CKY(words, q_binary_rules, q_unary_rules, N):
                 
                 flag = False 
                 
-                for binary_rule in list(q_binary_rules[X].keys()):
-                    Y, Z = binary_rule
+                for Y, Z, count_of_binary_rule in q_binary_rules[X]:
                     for s in range(i, j):                      
                         # if these tuples are not present => pi = 0  for them => this_prob = 0
                         # and hence, this non-terminal can be skipped
                         if((i, s, Y) in pi and (s + 1, j, Z) in pi):
-                            this_prob = q_binary_rules[X][(Y, Z)] * pi[(i, s, Y)] * pi[(s + 1, j, Z)]
-                            # assert(this_prob >= 0)
+                            this_prob = count_of_binary_rule * pi[(i, s, Y)] * pi[(s + 1, j, Z)]
+                            
                             if(this_prob > pi[(i, j, X)]):
                                     pi[(i, j, X)] = this_prob
                                     max_binary_rule = (X, Y, Z)
@@ -251,22 +198,12 @@ def CKY(words, q_binary_rules, q_unary_rules, N):
         root_val = 'S'
     else:
         max_prob = 0
-        for X in q_binary_rules:
+        for X in NT_with_binary_expansions:
             if(pi[(0, n - 1, X)] > max_prob):
                 max_prob = pi[(0, n - 1, X)]
                 root_val = X
     ##################### BUILD THE PARSE TREES OUT OF BACKPOINTERS ####################
     assert(root_val is not None)                
-#    parse_tree = buildTree(bp = bp, root_val = root_val, n = n)
-#
-#    # Convert this tree representation to array suitable for conversion to JSON 
-#    parse_tree_as_array = parse_tree.toArray()
-#
-#    # Convert array to JSON
-#    parse_tree_as_json = json.dumps(parse_tree_as_array)
-#
-#    return parse_tree_as_json
-    
     parse_tree_as_array = toJSONArray(bp = bp, root_val = root_val, n = n)
     parse_tree_as_json = json.dumps(parse_tree_as_array)
     return parse_tree_as_json
@@ -288,13 +225,6 @@ def ParseTestData(test_data_file_name = None, counts_file_name = None,
     ###################### VERIFIED THE `all-words` ##########################
     q_binary_rules, q_unary_rules, N, all_words = GetParameters(counts_file_name = counts_file_name)
     
-
-#    # Sanity checks on probabilty
-#    for binary_rule in q_binary_rules:
-#        assert(q_binary_rules[binary_rule] > 0)
-#    for unary_rule in q_unary_rules:
-#        assert(q_unary_rules[unary_rule] > 0)
-
     with open(test_data_file_name, "r") as f_test_data_input, open(test_data_key_file_name, "w+") as f_test_data_output:
          for line in f_test_data_input:
             line = line.strip()
