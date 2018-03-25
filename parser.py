@@ -1,7 +1,9 @@
+#!/usr/bin/python
+
 import sys
 import os
 
-def main():
+def start():
     """Entry point for all the programs"""
     question_number = sys.argv[1]
     assert(question_number == "q4" or
@@ -43,6 +45,6 @@ def main():
         cmd = "./q6.py %s %s %s" % (train_file_name, test_file_name, test_predictions_file_name)
         os.system(cmd)     
 if __name__ == "__main__":
-    main()
+    start()
 
 
