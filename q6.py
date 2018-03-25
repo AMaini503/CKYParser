@@ -246,7 +246,7 @@ if __name__ == "__main__":
     train_file_name = sys.argv[1]
     test_file_name = sys.argv[2]
     test_predictions_file_name = sys.argv[3]
-    counts_file_name = "cfg_q5.counts"
+    counts_file_name = "cfg_q6.counts"
 
     # Generate the counts file from the new train file: parse_train.RARE.dat
     cmd_counts_file_generation = "./count_cfg_freq.py %s > %s" % (
@@ -263,7 +263,7 @@ if __name__ == "__main__":
     os.system(cmd_delete_counts_file)
 
     # Generate the evaluation results
-    cmd_generate_evaluation_results = "python eval_parser.py parse_dev.key %s > q5_eval.txt" % (
+    cmd_generate_evaluation_results = "python eval_parser.py parse_dev.key %s > q6_eval.txt" % (
                                     test_predictions_file_name)
     os.system(cmd_generate_evaluation_results)
 
